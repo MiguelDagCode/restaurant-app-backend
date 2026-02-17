@@ -1,5 +1,5 @@
 package com.buensabor.restaurantapp.enums;
 
 public enum EstadoMesa {
-    LIBRE, OCUPADA
+    LIBRE, OCUPADA, POR_PAGAR, MANTENIMIENTO
 }

@@ -1,81 +1,131 @@
+DROP DATABASE IF EXISTS delifast_db;
+CREATE DATABASE delifast_db;
+USE delifast_db;
 
--- 2️⃣ Tabla Roles
-CREATE TABLE roles (
-  idRolUsuario INT AUTO_INCREMENT PRIMARY KEY,
-  rolUsuario VARCHAR(50) NOT NULL
+-- ==========================================================
+-- MÓDULO 1: SEGURIDAD Y USUARIOS (ADMINISTRADOR DE SISTEMA)
+-- ==========================================================
+CREATE TABLE tb_roles (
+    id_rol INT AUTO_INCREMENT PRIMARY KEY,
+    nombre_rol VARCHAR(50) NOT NULL UNIQUE,
+    activo BOOLEAN DEFAULT TRUE
 );
 
--- 3️⃣ Tabla Usuarios 
-CREATE TABLE usuarios (
-  idUsuario INT AUTO_INCREMENT PRIMARY KEY,
-  nombres VARCHAR(100) NOT NULL,
-  apellidos VARCHAR(100) NOT NULL,
-  correo VARCHAR(100) NOT NULL UNIQUE,
-  contrasena VARCHAR(255) NOT NULL, 
-  telefono VARCHAR(20),
-  dni VARCHAR(8),
-  estado ENUM('activo', 'inactivo') DEFAULT 'activo',
-  fechaRegistro DATETIME DEFAULT CURRENT_TIMESTAMP,
-  idRolUsuario INT NOT NULL,
-  direccion VARCHAR(150),
-  FOREIGN KEY (idRolUsuario) REFERENCES roles(idRolUsuario)
+CREATE TABLE tb_usuarios (
+    id_usuario INT AUTO_INCREMENT PRIMARY KEY,
+    id_rol INT,
+    nombre VARCHAR(100) NOT NULL,
+    apellido VARCHAR(100) NOT NULL,
+    telefono VARCHAR(20),
+    correo VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    estado BOOLEAN DEFAULT TRUE, 
+    FOREIGN KEY (id_rol) REFERENCES tb_roles(id_rol)
 );
 
--- 4️⃣ Tabla Categorías de Platos
-CREATE TABLE categorias_platos (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  nombre VARCHAR(100) NOT NULL
+-- ==========================================================
+-- MÓDULO 2: CATÁLOGO Y CONFIGURACIÓN DE PRODUCTOS
+-- ==========================================================
+CREATE TABLE tb_categoria (
+    id_categoria INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(50) NOT NULL,
+    activo BOOLEAN DEFAULT TRUE
 );
 
--- 5️⃣ Tabla Platos
-CREATE TABLE platos (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  nombre VARCHAR(100) NOT NULL,
-  descripcion TEXT,
-  precio DECIMAL(10,2) NOT NULL,
-  categoria_plato_id INT NOT NULL,
-  url_imagen VARCHAR(255),
-  FOREIGN KEY (categoria_plato_id) REFERENCES categorias_platos(id)
+CREATE TABLE tb_producto (
+    id_producto BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id_categoria INT NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    precio DECIMAL(10,2) NOT NULL,
+    img_url VARCHAR(255),
+    estado BOOLEAN DEFAULT TRUE,    -- Soft Delete
+    FOREIGN KEY (id_categoria) REFERENCES tb_categoria(id_categoria)
 );
 
--- 6️⃣ Tabla Mesas
-CREATE TABLE mesas (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  numero INT NOT NULL UNIQUE,
-  estado ENUM('LIBRE', 'OCUPADA') NOT NULL DEFAULT 'LIBRE'
+-- Tabla necesaria para el descuento de inventario, aunque el abastecimiento
+-- venga de otro servicio, este servicio necesita saber CUÁNTO hay para validar ventas.
+CREATE TABLE tb_insumo (
+    id_insumo BIGINT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    stock_actual DECIMAL(10,3) NOT NULL DEFAULT 0,
+    stock_minimo DECIMAL(10,3) NOT NULL,
+    unidad_medida VARCHAR(20) NOT NULL -- KG, LT, UNIDAD
 );
 
--- 7️⃣ Tabla Pedidos
-CREATE TABLE pedidos (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  mozo_id INT NOT NULL,
-  mesa_id INT NOT NULL,
-  fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  estado ENUM('PENDIENTE', 'EN_PROCESO', 'LISTO', 'PAGADO') NOT NULL DEFAULT 'PENDIENTE',
-  FOREIGN KEY (mozo_id) REFERENCES usuarios(idUsuario),
-  FOREIGN KEY (mesa_id) REFERENCES mesas(id)
+-- Solo estructura cuantitativa (Sin instrucciones confidenciales)
+CREATE TABLE tb_receta (
+    id_producto BIGINT NOT NULL,
+    id_insumo BIGINT NOT NULL,
+    cantidad_insumo DECIMAL(10,3) NOT NULL, -- Cantidad exacta a descontar
+    activo BOOLEAN DEFAULT TRUE,
+    PRIMARY KEY (id_producto, id_insumo),
+    FOREIGN KEY (id_producto) REFERENCES tb_producto(id_producto),
+    FOREIGN KEY (id_insumo) REFERENCES tb_insumo(id_insumo)
 );
 
--- 8️⃣ Tabla Detalle de Pedido
-CREATE TABLE detalle_pedido (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  pedido_id INT NOT NULL,
-  plato_id INT NOT NULL,
-  cantidad INT NOT NULL,
-  estado ENUM('RECIBIDO', 'EN_PROCESO', 'LISTO') NOT NULL DEFAULT 'RECIBIDO',
-  FOREIGN KEY (pedido_id) REFERENCES pedidos(id),
-  FOREIGN KEY (plato_id) REFERENCES platos(id)
+-- ==========================================================
+-- MÓDULO 3: OPERACIÓN (MESAS, PEDIDOS Y COCINA)
+-- ==========================================================
+CREATE TABLE tb_mesa (
+    id_mesa INT AUTO_INCREMENT PRIMARY KEY,
+    numero_mesa VARCHAR(10) NOT NULL UNIQUE,
+    capacidad INT NOT NULL,
+    estado ENUM('LIBRE', 'OCUPADA', 'POR_PAGAR', 'MANTENIMIENTO') DEFAULT 'LIBRE'
 );
 
--- 9️⃣ Tabla Pagos
-CREATE TABLE pagos (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  pedido_id INT NOT NULL,
-  nombre_cliente VARCHAR(100) NOT NULL,
-  dni_ruc VARCHAR(12) NOT NULL,
-  tipo_documento ENUM('BOLETA', 'FACTURA') NOT NULL,
-  numero_documento VARCHAR(100) NOT NULL UNIQUE,
-  fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  monto_total DECIMAL(10,2) NOT NULL,
-  FOREIGN KEY (pedido_id) REFERENCES pedidos(id)
+CREATE TABLE tb_pedido (
+    id_pedido BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id_mesa INT NOT NULL,
+    id_usuario INT NOT NULL, -- Mozo que atiende
+    -- Datos Cliente
+    tipo_doc ENUM('DNI', 'RUC', 'PASAPORTE') DEFAULT 'DNI',
+    num_doc VARCHAR(20),
+    nombres_razon_social VARCHAR(150) NOT NULL,
+    telefono_cliente VARCHAR(20),
+    -- Tiempos de Servicio (SLA Cocina)
+    fecha_apertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_inicio_cocina DATETIME NULL,
+    fecha_fin_cocina DATETIME NULL,
+    -- Flujo de Estado
+    estado_pedido ENUM('PENDIENTE', 'EN_PREPARACION', 'LISTO_PARA_SERVIR', 'ENTREGADO', 'PAGADO', 'CANCELADO') DEFAULT 'PENDIENTE',
+    total DECIMAL(10,2) DEFAULT 0.00,
+    FOREIGN KEY (id_mesa) REFERENCES tb_mesa(id_mesa),
+    FOREIGN KEY (id_usuario) REFERENCES tb_usuarios(id_usuario)
+);
+
+CREATE TABLE tb_detalle_pedido (
+    id_pedido BIGINT NOT NULL,
+    id_producto BIGINT NOT NULL,
+    cantidad INT NOT NULL,
+    precio_unitario DECIMAL(10,2) NOT NULL, -- Precio congelado al momento de la venta
+    observaciones TEXT, -- "Sin cebolla", "Bien cocido" (Esto sí lo ve cocina)
+    PRIMARY KEY (id_pedido, id_producto),
+    FOREIGN KEY (id_pedido) REFERENCES tb_pedido(id_pedido),
+    FOREIGN KEY (id_producto) REFERENCES tb_producto(id_producto)
+);
+
+-- ==========================================================
+-- MÓDULO 4: FACTURACIÓN Y CONTROL DE MERMAS
+-- ==========================================================
+CREATE TABLE tb_facturacion (
+    id_factura BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id_pedido BIGINT NOT NULL UNIQUE,
+    tipo_comprobante ENUM('BOLETA', 'FACTURA') NOT NULL,
+    fecha_emision DATETIME DEFAULT CURRENT_TIMESTAMP,
+    monto_total DECIMAL(10,2) NOT NULL,
+    medio_pago ENUM('EFECTIVO', 'TARJETA', 'YAPE', 'PLIN') NOT NULL,
+    FOREIGN KEY (id_pedido) REFERENCES tb_pedido(id_pedido)
+);
+
+CREATE TABLE tb_merma (
+    id_merma BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id_insumo BIGINT NOT NULL,
+    id_usuario_reporta INT NOT NULL,
+    id_producto BIGINT, -- Opcional: Si se cayó un plato preparado
+    cantidad DECIMAL(10,3) NOT NULL,
+    motivo ENUM('QUEMADO', 'CAIDA', 'VENCIDO', 'ERROR_PEDIDO', 'CADUCIDAD') NOT NULL,
+    fecha_reporte DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_insumo) REFERENCES tb_insumo(id_insumo),
+    FOREIGN KEY (id_usuario_reporta) REFERENCES tb_usuarios(id_usuario),
+    FOREIGN KEY (id_producto) REFERENCES tb_producto(id_producto)
 );

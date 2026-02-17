@@ -1,90 +1,51 @@
 package com.buensabor.restaurantapp.service.impl;
 
-import java.util.Collections;
-import java.util.List;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import com.buensabor.restaurantapp.model.Rol;
+import com.buensabor.restaurantapp.model.Usuario;
+import com.buensabor.restaurantapp.repository.UsuarioRepository;
+import com.buensabor.restaurantapp.service.RolService;
+import com.buensabor.restaurantapp.service.UsuarioService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import com.buensabor.restaurantapp.entity.Usuario;
-import com.buensabor.restaurantapp.enums.EstadoUsuario;
-import com.buensabor.restaurantapp.repository.UsuarioRepository;
-import com.buensabor.restaurantapp.service.UsuarioService;
-
+import java.util.Optional;
 
 @Service
-public class UsuarioServiceImpl implements UserDetailsService, UsuarioService {
+@RequiredArgsConstructor
+public class UsuarioServiceImpl implements UsuarioService {
 
+    private final UsuarioRepository usuarioRepository;
+    private final RolService rolService;
     private final PasswordEncoder passwordEncoder;
 
-    @Autowired
-    private UsuarioRepository usuarioRepository;
-
-    UsuarioServiceImpl(PasswordEncoder passwordEncoder) {
-        this.passwordEncoder = passwordEncoder;
-    }
-    
-    // No necesitas inyectar PasswordEncoder aquí, ya que Spring Security lo gestiona
-    // Puedes inyectarlo en tu servicio de registro de usuarios, pero no en este método de carga.
-
     @Override
-    public UserDetails loadUserByUsername(String correo) throws UsernameNotFoundException {
-        // Buscar al usuario por su correo electrónico
-        Usuario usuario = usuarioRepository.findByCorreo(correo)
-            .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado: " + correo));
-
-        // Obtener el rol del usuario
-        String rol = usuario.getRol().getNombre().toUpperCase(); 
-        String rolConPrefijo = "ROLE_" + rol; 
-
-        // Verificar si el usuario está activo
-        boolean estaActivo = EstadoUsuario.activo.name().equalsIgnoreCase(usuario.getEstado().name());
-
-        // Crear y devolver el objeto UserDetails con las credenciales y roles
-        // Spring Security usará el PasswordEncoder para comparar la contraseña del formulario
-        // con la que tú le devuelves aquí.
-        return new User(
-                usuario.getCorreo(),                 // nombre de usuario (login)
-                usuario.getContrasena(),             // contraseña (cifrada)
-                estaActivo,                          // si está habilitado o no
-                true, true, true,                    // cuenta no expirada, no bloqueada, credenciales válidas
-                Collections.singletonList(
-                    new SimpleGrantedAuthority(rolConPrefijo)) // lista de roles del usuario
-        );
-    }
-
-	@Override
-	public Usuario buscarByUsuario(String correo) {
-		return usuarioRepository.findByCorreo(correo).orElse(null);
-	}
-
-    @Override
+    @Transactional
     public Usuario registrar(Usuario usuario) {
-        if (usuarioRepository.existsByCorreo(usuario.getCorreo())) {
-            throw new RuntimeException("Correo ya registrado");
+        // 1. Validaciones
+        if (usuarioRepository.findByCorreo(usuario.getCorreo()).isPresent()) {
+            throw new RuntimeException("El correo ya está registrado");
         }
-        usuario.setContrasena(passwordEncoder.encode(usuario.getContrasena()));
+
+        // 2. Asignar Rol (Validando que exista)
+        // Ojo: usuario.getRol().getIdRol() viene del mapeo en el Controller
+        Rol rol = rolService.buscarPorId(usuario.getRol().getIdRol())
+                .orElseThrow(() -> new RuntimeException("Rol no encontrado"));
+        usuario.setRol(rol);
+
+        // 3. Encriptar Password
+        usuario.setPassword(passwordEncoder.encode(usuario.getPassword()));
+        
+        // 4. Setear estado por defecto
+        usuario.setEstado(true);
+
         return usuarioRepository.save(usuario);
     }
 
     @Override
-    public List<Usuario> listarUsuarios() {
-        return usuarioRepository.findAll();
-    }
-
-    @Override
-    public Usuario buscarPorId(Integer id) {
-        return usuarioRepository.findById(id).orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-    }
-
-    @Override
-    public void eliminar(Integer id) {
-    	usuarioRepository.deleteById(id);
+    @Transactional(readOnly = true)
+    public Optional<Usuario> buscarPorCorreo(String correo) {
+        return usuarioRepository.findByCorreo(correo);
     }
 }

@@ -1,52 +1,80 @@
 package com.buensabor.restaurantapp.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import com.buensabor.restaurantapp.dto.request.LoginRequest;
+import com.buensabor.restaurantapp.dto.request.RegisterRequest;
+import com.buensabor.restaurantapp.dto.response.AuthResponse;
+import com.buensabor.restaurantapp.model.Rol;
+import com.buensabor.restaurantapp.model.Usuario;
+import com.buensabor.restaurantapp.security.jwt.JwtService;
+import com.buensabor.restaurantapp.service.UsuarioService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-import com.buensabor.restaurantapp.dto.AuthRequest;
-import com.buensabor.restaurantapp.dto.AuthResponse;
-import com.buensabor.restaurantapp.entity.Usuario;
-import com.buensabor.restaurantapp.security.JwtUtil;
-import com.buensabor.restaurantapp.service.UsuarioService;
+import java.util.HashMap;
+import java.util.Map;
 
-@CrossOrigin(origins = "http://localhost:4200")
 @RestController
 @RequestMapping("/api/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
-    @Autowired
-    private AuthenticationManager authenticationManager;
+    private final AuthenticationManager authenticationManager;
+    private final UsuarioService usuarioService;
+    private final JwtService jwtService;
 
-    @Autowired
-    private JwtUtil jwtUtil;
-    
-    @Autowired
-    private UsuarioService usuarioService; 
+    @PostMapping("/register")
+    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
+        // 1. Mapeo Manual (O usar MapStruct)
+        Usuario usuario = new Usuario();
+        usuario.setNombre(request.getNombre());
+        usuario.setApellido(request.getApellido());
+        usuario.setCorreo(request.getCorreo());
+        usuario.setTelefono(request.getTelefono());
+        usuario.setPassword(request.getPassword()); // Se encriptará en el servicio
+        
+        // Creamos un rol temporal solo con el ID para pasarlo al servicio
+        Rol rolAux = new Rol();
+        rolAux.setIdRol(request.getIdRol());
+        usuario.setRol(rolAux);
 
- // Controlador principal para manejar la autenticación (login)
+        // 2. Lógica de Negocio
+        Usuario usuarioCreado = usuarioService.registrar(usuario);
+
+        // 3. Generar Token (Para que quede logueado automáticamente al registrarse)
+        String token = generarTokenConClaims(usuarioCreado);
+
+        return new ResponseEntity<>(new AuthResponse(token), HttpStatus.CREATED);
+    }
+
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> authenticateUser(@RequestBody AuthRequest loginRequest) {
-        // Autenticar al usuario
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(loginRequest.getCorreo(), loginRequest.getContrasena())
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+        // 1. Autenticar (Spring Security)
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.getCorreo(), request.getPassword())
         );
 
-        //Busca el usuario para obtener datos adicionales (nombre, apellidos)
-        Usuario usuario = usuarioService.buscarByUsuario(loginRequest.getCorreo());
+        // 2. Buscar Usuario (Ya sabemos que existe si pasó la línea anterior)
+        Usuario usuario = usuarioService.buscarPorCorreo(request.getCorreo()).orElseThrow();
 
-        // Genera el JWT si la autenticación es exitosa
-        String token = jwtUtil.generateToken(authentication, usuario); 
-        
-        //Devuelve el token en la respuesta
+        // 3. Generar Token con Claims
+        String token = generarTokenConClaims(usuario);
+
         return ResponseEntity.ok(new AuthResponse(token));
     }
-    
+
+    // Método auxiliar para no repetir código
+    private String generarTokenConClaims(Usuario usuario) {
+        Map<String, Object> extraClaims = new HashMap<>();
+        extraClaims.put("idUsuario", usuario.getIdUsuario());
+        extraClaims.put("nombre", usuario.getNombre() + " " + usuario.getApellido());
+        extraClaims.put("rol", usuario.getRol().getNombreRol());
+        // Agregamos permisos o cualquier otra data necesaria para el Front
+        
+        return jwtService.generateToken(extraClaims, usuario);
+    }
 }

@@ -1,14 +1,10 @@
 package com.buensabor.restaurantapp.service;
 
-import java.util.List;
+import java.util.Optional;
 
-import com.buensabor.restaurantapp.entity.Usuario;
+import com.buensabor.restaurantapp.model.Usuario;
 
 public interface UsuarioService {
-	public Usuario buscarByUsuario(String correo);
     Usuario registrar(Usuario usuario);
-    List<Usuario> listarUsuarios();
-    Usuario buscarPorId(Integer id);
-    void eliminar(Integer id);
-
+    Optional<Usuario> buscarPorCorreo(String correo);
 }
