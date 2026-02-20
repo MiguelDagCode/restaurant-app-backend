@@ -38,7 +38,7 @@ public class SecurityConfig {
             .requestMatchers("/api/auth/**").permitAll()
             
             // 2. RUTAS DE ADMINISTRADOR (Gestión de personal y reportes)
-            .requestMatchers("/api/usuarios/**").hasRole("ADMINISTRADOR") // Protegido!
+            .requestMatchers("/api/usuarios/**").hasRole("ADMIN") // Protegido!
             
             // Cualquier otra cosa: Cerrada
             .anyRequest().authenticated()
