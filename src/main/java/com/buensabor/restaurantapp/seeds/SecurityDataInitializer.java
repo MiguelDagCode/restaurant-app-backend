@@ -1,33 +1,28 @@
-package com.buensabor.restaurantapp.config;
+package com.buensabor.restaurantapp.seeds;
 
-import com.buensabor.restaurantapp.model.Categoria;
-import com.buensabor.restaurantapp.model.Producto;
 import com.buensabor.restaurantapp.model.Rol;
 import com.buensabor.restaurantapp.model.Usuario;
-import com.buensabor.restaurantapp.repository.CategoriaRepository;
-import com.buensabor.restaurantapp.repository.ProductoRepository;
 import com.buensabor.restaurantapp.repository.RolRepository;
 import com.buensabor.restaurantapp.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 
 @Component
+@Order(1) 
 @RequiredArgsConstructor
-public class DataInitializer implements CommandLineRunner {
+public class SecurityDataInitializer implements CommandLineRunner {
 
     private final RolRepository rolRepository;
     private final UsuarioRepository usuarioRepository;
-    private final CategoriaRepository categoriaRepository;
-    private final ProductoRepository productoRepository;
     private final PasswordEncoder passwordEncoder;
-
-    // Configuración de usuarios por defecto
+    
+	// Configuración de usuarios por defecto
     @Value("${app.admin.email:admin@delifast.com}")
     private String adminEmail;
     @Value("${app.admin.password:admin123}")
@@ -47,7 +42,7 @@ public class DataInitializer implements CommandLineRunner {
     private String mozoEmail;
     @Value("${app.mozo.password:mozo123}")
     private String mozoPassword;
-
+    
     @Override
     @Transactional
     public void run(String... args) {
@@ -65,21 +60,10 @@ public class DataInitializer implements CommandLineRunner {
         crearUsuarioSiNoExiste("Cocinero", "Principal", cocineroEmail, cocineroPassword, rolCocinero);
         crearUsuarioSiNoExiste("Mozo", "Principal", mozoEmail, mozoPassword, rolMozo);
 
-        // Crear categorías por defecto
-        Categoria entradas = crearCategoriaSiNoExiste("Entradas");
-        Categoria fondo = crearCategoriaSiNoExiste("Platos de Fondo");
-        Categoria postres = crearCategoriaSiNoExiste("Postres");
-        Categoria bebidas = crearCategoriaSiNoExiste("Bebidas");
 
-        // Crear productos de ejemplo
-        crearProductoSiNoExiste("Ceviche Clásico", new BigDecimal("25.00"), "img/ceviche.jpg", entradas);
-        crearProductoSiNoExiste("Lomo Saltado", new BigDecimal("30.00"), "img/lomo.jpg", fondo);
-        crearProductoSiNoExiste("Suspiro a la Limeña", new BigDecimal("15.00"), "img/suspiro.jpg", postres);
-        crearProductoSiNoExiste("Chicha Morada", new BigDecimal("8.00"), "img/chicha.jpg", bebidas);
-
-        System.out.println("--- CARGA DE DATOS MAESTROS FINALIZADA ---");
+        System.out.println("--- CARGA DE DATOS MAESTROS SECURITY FINALIZADA ---");
     }
-
+    
     private Rol crearRolSiNoExiste(String nombreRol) {
         return rolRepository.findByNombreRol(nombreRol)
                 .orElseGet(() -> {
@@ -109,40 +93,5 @@ public class DataInitializer implements CommandLineRunner {
                     System.out.println(" > Usuario " + rol.getNombreRol() + " creado con éxito: " + correo);
                 }
         );
-    }
-
-    private Categoria crearCategoriaSiNoExiste(String nombreCategoria) {
-        return categoriaRepository.findAll().stream()
-                .filter(c -> c.getNombre().equalsIgnoreCase(nombreCategoria))
-                .findFirst()
-                .orElseGet(() -> {
-                    Categoria categoria = Categoria.builder()
-                            .nombre(nombreCategoria)
-                            .activo(true)
-                            .build();
-                    categoriaRepository.save(categoria);
-                    System.out.println(" > Categoría creada: " + nombreCategoria);
-                    return categoria;
-                });
-    }
-
-    private void crearProductoSiNoExiste(String nombre, BigDecimal precio, String imgUrl, Categoria categoria) {
-        productoRepository.findAll().stream()
-                .filter(p -> p.getNombre().equalsIgnoreCase(nombre))
-                .findFirst()
-                .ifPresentOrElse(
-                        p -> System.out.println(" > El producto ya existe (" + nombre + ")."),
-                        () -> {
-                            Producto producto = Producto.builder()
-                                    .nombre(nombre)
-                                    .precio(precio)
-                                    .imgUrl(imgUrl)
-                                    .categoria(categoria)
-                                    .estado(true)
-                                    .build();
-                            productoRepository.save(producto);
-                            System.out.println(" > Producto creado: " + nombre);
-                        }
-                );
     }
 }

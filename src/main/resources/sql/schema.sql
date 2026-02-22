@@ -117,15 +117,3 @@ CREATE TABLE tb_facturacion (
     FOREIGN KEY (id_pedido) REFERENCES tb_pedido(id_pedido)
 );
 
-CREATE TABLE tb_merma (
-    id_merma BIGINT AUTO_INCREMENT PRIMARY KEY,
-    id_insumo BIGINT NOT NULL,
-    id_usuario_reporta INT NOT NULL,
-    id_producto BIGINT, -- Opcional: Si se cayó un plato preparado
-    cantidad DECIMAL(10,3) NOT NULL,
-    motivo ENUM('QUEMADO', 'CAIDA', 'VENCIDO', 'ERROR_PEDIDO', 'CADUCIDAD') NOT NULL,
-    fecha_reporte DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (id_insumo) REFERENCES tb_insumo(id_insumo),
-    FOREIGN KEY (id_usuario_reporta) REFERENCES tb_usuarios(id_usuario),
-    FOREIGN KEY (id_producto) REFERENCES tb_producto(id_producto)
-);
