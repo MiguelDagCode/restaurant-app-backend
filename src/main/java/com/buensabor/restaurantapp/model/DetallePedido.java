@@ -40,4 +40,6 @@ public class DetallePedido implements Serializable {
 
     @Column(name = "observaciones", columnDefinition = "TEXT")
     private String observaciones;
+    
+    //RAMA PRUEBA
 }
