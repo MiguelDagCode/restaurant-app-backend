@@ -104,16 +104,5 @@ CREATE TABLE tb_detalle_pedido (
     FOREIGN KEY (id_producto) REFERENCES tb_producto(id_producto)
 );
 
--- ==========================================================
--- MÓDULO 4: FACTURACIÓN Y CONTROL DE MERMAS
--- ==========================================================
-CREATE TABLE tb_facturacion (
-    id_factura BIGINT AUTO_INCREMENT PRIMARY KEY,
-    id_pedido BIGINT NOT NULL UNIQUE,
-    tipo_comprobante ENUM('BOLETA', 'FACTURA') NOT NULL,
-    fecha_emision DATETIME DEFAULT CURRENT_TIMESTAMP,
-    monto_total DECIMAL(10,2) NOT NULL,
-    medio_pago ENUM('EFECTIVO', 'TARJETA', 'YAPE', 'PLIN') NOT NULL,
-    FOREIGN KEY (id_pedido) REFERENCES tb_pedido(id_pedido)
-);
+
 

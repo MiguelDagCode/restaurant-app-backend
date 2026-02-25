@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.buensabor.restaurantapp.dto.request.DetallePedidoRequest;
 import com.buensabor.restaurantapp.dto.request.PedidoRequest;
+import com.buensabor.restaurantapp.dto.response.DetallePedidoResponse;
+import com.buensabor.restaurantapp.dto.response.PedidoResponse;
 import com.buensabor.restaurantapp.enums.EstadoMesa;
 import com.buensabor.restaurantapp.enums.EstadoPedido;
 import com.buensabor.restaurantapp.enums.TipoDocumento;
@@ -114,4 +116,79 @@ public class PedidoServiceImpl implements PedidoService{
         return pedidoRepository.save(pedido);
 	}
 
+	@Transactional(readOnly = true)
+    public List<PedidoResponse> listarTodos() {
+        return pedidoRepository.findAll().stream()
+                .map(this::mapearAPedidoResponse)
+                .toList(); // Si usas Java 16+ (o collect(Collectors.toList()) si usas versión anterior)
+    }
+
+    @Transactional(readOnly = true)
+    public PedidoResponse obtenerPorId(Long idPedido) {
+        Pedido pedido = pedidoRepository.findById(idPedido)
+                .orElseThrow(() -> new ModeloNotFoundException("Pedido no encontrado con ID: " + idPedido));
+        return mapearAPedidoResponse(pedido);
+    }
+    
+    @Transactional
+    public PedidoResponse cobrarPedido(Long idPedido) {
+        // 1. Buscamos el pedido
+        Pedido pedido = pedidoRepository.findById(idPedido)
+                .orElseThrow(() -> new ModeloNotFoundException("Pedido no encontrado con ID: " + idPedido));
+
+        // 2. Validamos que no esté pagado ya (por si el cajero hace doble clic)
+        if ("PAGADO".equals(pedido.getEstadoPedido().toString())) {
+            throw new BusinessException("Este pedido ya ha sido cobrado anteriormente.");
+        }
+
+        // 3. Cambiamos el estado del Pedido a PAGADO
+        // Asegúrate de usar tu Enum correspondiente aquí (Ej: EstadoPedido.PAGADO)
+        pedido.setEstadoPedido(EstadoPedido.PAGADO); 
+        
+        // 4. Liberamos la Mesa
+        Mesa mesa = pedido.getMesa();
+        // Asegúrate de usar tu Enum correspondiente (Ej: EstadoMesa.LIBRE)
+        mesa.setEstado(EstadoMesa.LIBRE); 
+        
+        // 5. Guardamos los cambios
+        mesaRepository.save(mesa);
+        pedido = pedidoRepository.save(pedido);
+
+        // Retornamos el DTO actualizado
+        return mapearAPedidoResponse(pedido);
+    }
+
+    // Método auxiliar mágico
+    private PedidoResponse mapearAPedidoResponse(Pedido pedido) {
+        // 1. Buscamos los detalles de este pedido
+        List<DetallePedido> detallesEntity = detallePedidoRepository.findByPedido_IdPedido(pedido.getIdPedido());
+        
+        // 2. Mapeamos los detalles a DTO
+        List<DetallePedidoResponse> detallesDto = detallesEntity.stream().map(d -> 
+            DetallePedidoResponse.builder()
+                .idProducto(d.getProducto().getIdProducto())
+                .nombreProducto(d.getProducto().getNombre())
+                .cantidad(d.getCantidad())
+                .precioUnitario(d.getPrecioUnitario())
+                .subtotal(d.getPrecioUnitario().multiply(new BigDecimal(d.getCantidad())))
+                .observaciones(d.getObservaciones())
+                .build()
+        ).toList();
+
+        // 3. Armamos la cabecera
+        return PedidoResponse.builder()
+                .idPedido(pedido.getIdPedido())
+                .idMesa(pedido.getMesa().getIdMesa())
+                .numeroMesa(pedido.getMesa().getNumeroMesa())
+                .nombreMozo(pedido.getUsuario().getNombre() + " " + pedido.getUsuario().getApellido())
+                .nombresCliente(pedido.getNombresRazonSocial())
+                .tipoDoc(pedido.getTipoDoc() != null ? pedido.getTipoDoc().toString() : "")
+                .numDoc(pedido.getNumDoc())
+                .telefonoCliente(pedido.getTelefonoCliente())
+                .estadoPedido(pedido.getEstadoPedido().toString())
+                .fechaApertura(pedido.getFechaApertura() != null ? pedido.getFechaApertura(): null)
+                .total(pedido.getTotal())
+                .detalles(detallesDto)
+                .build();
+    }
 }
