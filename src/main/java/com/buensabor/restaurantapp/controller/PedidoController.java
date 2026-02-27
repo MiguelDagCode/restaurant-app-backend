@@ -29,10 +29,10 @@ public class PedidoController {
         Pedido nuevoPedido = pedidoService.crearPedido(request);
         return new ResponseEntity<>(nuevoPedido, HttpStatus.CREATED);
     }
- // ... [Tu código de registrarPedido] ...
+ //
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'CAJERO', 'MOZO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CAJERO', 'MOZO', 'COCINERO')")
     public ResponseEntity<List<PedidoResponse>> listarPedidos() {
         return ResponseEntity.ok(pedidoService.listarTodos());
     }
@@ -48,5 +48,19 @@ public class PedidoController {
     public ResponseEntity<PedidoResponse> cobrarPedido(@PathVariable Long id) {
         PedidoResponse pedidoCobrado = pedidoService.cobrarPedido(id);
         return ResponseEntity.ok(pedidoCobrado);
+    }
+    
+    @PatchMapping("/{id}/iniciar-preparacion")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COCINERO')")
+    public ResponseEntity<Void> iniciarPreparacion(@PathVariable Long id) {
+        pedidoService.iniciarPreparacion(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/finalizar-preparacion")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COCINERO')")
+    public ResponseEntity<Void> finalizarPreparacion(@PathVariable Long id) {
+        pedidoService.finalizarPreparacion(id);
+        return ResponseEntity.noContent().build();
     }
 }

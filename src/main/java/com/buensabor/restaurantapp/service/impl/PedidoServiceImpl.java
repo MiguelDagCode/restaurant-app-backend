@@ -2,6 +2,7 @@ package com.buensabor.restaurantapp.service.impl;
 
 import java.math.BigDecimal;
 import java.net.Authenticator.RequestorType;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -120,7 +121,7 @@ public class PedidoServiceImpl implements PedidoService{
     public List<PedidoResponse> listarTodos() {
         return pedidoRepository.findAll().stream()
                 .map(this::mapearAPedidoResponse)
-                .toList(); // Si usas Java 16+ (o collect(Collectors.toList()) si usas versión anterior)
+                .toList(); 
     }
 
     @Transactional(readOnly = true)
@@ -156,6 +157,33 @@ public class PedidoServiceImpl implements PedidoService{
 
         // Retornamos el DTO actualizado
         return mapearAPedidoResponse(pedido);
+    }
+    @Transactional
+    public void iniciarPreparacion(Long idPedido) {
+        Pedido pedido = pedidoRepository.findById(idPedido)
+                .orElseThrow(() -> new ModeloNotFoundException("Pedido no encontrado"));
+        
+        if (!pedido.getEstadoPedido().name().equals("PENDIENTE")) {
+            throw new BusinessException("Solo los pedidos PENDIENTES pueden pasar a preparación.");
+        }
+
+        pedido.setEstadoPedido(EstadoPedido.EN_PREPARACION);
+        pedido.setFechaInicioCocina(LocalDateTime.now()); 
+        pedidoRepository.save(pedido);
+    }
+
+    @Transactional
+    public void finalizarPreparacion(Long idPedido) {
+        Pedido pedido = pedidoRepository.findById(idPedido)
+                .orElseThrow(() -> new ModeloNotFoundException("Pedido no encontrado"));
+
+        if (!pedido.getEstadoPedido().name().equals("EN_PREPARACION")) {
+            throw new BusinessException("El pedido debe estar EN_PREPARACION para poder finalizarlo.");
+        }
+
+        pedido.setEstadoPedido(EstadoPedido.ENTREGADO); 
+        pedido.setFechaFinCocina(LocalDateTime.now()); 
+        pedidoRepository.save(pedido);
     }
 
     // Método auxiliar mágico
